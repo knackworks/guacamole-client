@@ -47,6 +47,7 @@ angular.module('auth').factory('authenticationService', ['$injector',
 
     // Required services
     var $rootScope          = $injector.get('$rootScope');
+    var $q                  = $injector.get('$q');
     var localStorageService = $injector.get('localStorageService');
     var requestService      = $injector.get('requestService');
 
@@ -67,6 +68,17 @@ angular.module('auth').factory('authenticationService', ['$injector',
      * @type String
      */
     var AUTH_STORAGE_KEY = 'GUAC_AUTH';
+
+    /**
+     * List of Logout handlers that are ensured to be run before this service
+     * forces the page to be reloaded.
+     * 
+     * Warning: If a handler has a page reload or redirect in it this can cause
+     * handlers not to be run.
+     * 
+     * @type Array of Angular promises
+     */
+    var logoutHandlers = [];
 
     /**
      * Retrieves the last successful authentication result. If the user has not
@@ -297,8 +309,9 @@ angular.module('auth').factory('authenticationService', ['$injector',
         return requestService({
             method: 'DELETE',
             url: 'api/tokens/' + token
-        });
-
+        }).then(() => {
+            return $q.all(getLogoutHandlerPromises());
+        }) 
     };
 
     /**
@@ -393,6 +406,42 @@ angular.module('auth').factory('authenticationService', ['$injector',
         return [];
 
     };
+
+    /**
+     * This function accepts a callback function and stores it in an array of 
+     * functions that will be run before page reload when a user logout is triggered.
+     * 
+     * @param {Function} handlerFunction
+     *     The function that we want to run as a callback to the logout event
+     */
+    service.registerLogoutHandler = function registerLogoutHandler(handlerFunction) {
+        logoutHandlers.push(handlerFunction)
+    }
+
+    /**
+     * This private function transforms all of the registered logout handlers into 
+     * promises which will allow the use of $q.all() or Promise.all() to ensure that 
+     * each handler is activated.
+     */
+    let getLogoutHandlerPromises = function getLogoutHandlerPromises() {
+        let promises = [];
+
+        for (x in logoutHandlers) {
+            let handlerFunction = logoutHandlers[x];
+            promises.push(
+                $q((resolve, reject) => {
+                    try {
+                        handlerFunction();
+                        resolve('Logout handler ran successfully');
+                    } catch (e) {
+                        reject(e);
+                    }
+                })
+            )
+        }
+
+        return promises;
+    }
 
     return service;
 }]);
