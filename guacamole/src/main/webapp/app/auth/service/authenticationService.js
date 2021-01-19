@@ -411,8 +411,13 @@ angular.module('auth').factory('authenticationService', ['$injector',
      * This function accepts a callback function and stores it in an array of 
      * functions that will be run before page reload when a user logout is triggered.
      * 
-     * @param {Function} handlerFunction
+     * @param {Function} handlerFunction(resolve, reject)
      *     The function that we want to run as a callback to the logout event
+     *     The function MUST call either resolve('reason') (success callback) or 
+     *     reject('reason') (failure callback).  This will allow you to do async 
+     *     operations inside the handlerFunction and only trigger success/failure 
+     *     when your operations are finished.
+     *     
      */
     service.registerLogoutHandler = function registerLogoutHandler(handlerFunction) {
         logoutHandlers.push(handlerFunction)
@@ -431,8 +436,7 @@ angular.module('auth').factory('authenticationService', ['$injector',
             promises.push(
                 $q((resolve, reject) => {
                     try {
-                        handlerFunction();
-                        resolve('Logout handler ran successfully');
+                        handlerFunction(resolve, reject);
                     } catch (e) {
                         reject(e);
                     }
